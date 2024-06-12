@@ -134,9 +134,25 @@ class GeofenceBroadcastReceiver: BroadcastReceiver() {
 
     @SuppressLint("MissingPermission")
     private fun sendNotification(notificationTitle: String, notificationDetails: String, context: Context) {
+        Log.i(TAG, "Trying to send")
+        //  Send notification
+        val notificationIntent = Intent(context, MapsActivity::class.java)
+        notificationIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        val notifPendingIntent = PendingIntent.getActivity(
+            context, 0, notificationIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notif = NotificationCompat.Builder(context, CHANNELID)
+            .setSmallIcon(android.R.drawable.star_on)
+            .setContentTitle(notificationTitle)
+            .setContentText(notificationDetails)
+            .setContentIntent(notifPendingIntent)
+            .setAutoCancel(true)
+            .build()
 
-        // TODO: Send notification
-
+        with(NotificationManagerCompat.from(context)) {
+            notify(NOTIFICATIONID, notif)
+        }
     }
 
 
