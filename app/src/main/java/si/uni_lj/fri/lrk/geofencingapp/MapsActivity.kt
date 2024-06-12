@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.location.Location
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
@@ -42,7 +43,14 @@ class MapsActivity : AppCompatActivity() , OnMapReadyCallback, OnCompleteListene
     private lateinit var mFusedLocationProviderClient: FusedLocationProviderClient
     private lateinit var mGeofencingClient: GeofencingClient
 
-    // TODO: Create PendingIntent that will be called once a geofence is exited/entered
+    // Create PendingIntent that will be called once a geofence is exited/entered
+    // Permission to fire an intent when a specific event occurs
+    // lazy is lazyloading, makes the thing only initialise when needed
+    private val mGeofencePendingIntent: PendingIntent by lazy {
+        val intent = Intent(this, GeofenceBroadcastReceiver::class.java)
+        PendingIntent.getBroadcast(this, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
+    }
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,7 +64,8 @@ class MapsActivity : AppCompatActivity() , OnMapReadyCallback, OnCompleteListene
 
         mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
 
-        // TODO: instantiate the geofencing client
+        // instantiate the geofencing client
+        mGeofencingClient = LocationServices.getGeofencingClient(this)
     }
 
     override fun onMapReady(googleMap: GoogleMap) {
@@ -149,20 +158,20 @@ class MapsActivity : AppCompatActivity() , OnMapReadyCallback, OnCompleteListene
             override fun onMarkerDragStart(marker: Marker) {}
 
             override fun onMarkerDragEnd(marker: Marker) {
-                marker?:return
+                marker?:return // check if null - not needed but I'll keep it :)
 
                 val lat = marker.position.latitude
                 val lon = marker.position.longitude
 
                 // TODO: Uncomment when addGeofence function is completed
 
-//                if (marker.title.equals(getString(R.string.map_marker_home))) {
-//                    addGeofence(getGeofencingRequest(getString(R.string.map_marker_home), lat, lon))
-//                } else if (marker.title.equals(getString(R.string.map_marker_work))) {
-//                    addGeofence(getGeofencingRequest(getString(R.string.map_marker_work), lat, lon))
-//                } else if (marker.title.equals(getString(R.string.map_marker_fitness))) {
-//                    addGeofence(getGeofencingRequest(getString(R.string.map_marker_fitness), lat, lon))
-//                }
+                if (marker.title.equals(getString(R.string.map_marker_home))) {
+                    addGeofence(getGeofencingRequest(getString(R.string.map_marker_home), lat, lon))
+                } else if (marker.title.equals(getString(R.string.map_marker_work))) {
+                    addGeofence(getGeofencingRequest(getString(R.string.map_marker_work), lat, lon))
+                } else if (marker.title.equals(getString(R.string.map_marker_fitness))) {
+                    addGeofence(getGeofencingRequest(getString(R.string.map_marker_fitness), lat, lon))
+                }
             }
 
 
@@ -171,13 +180,38 @@ class MapsActivity : AppCompatActivity() , OnMapReadyCallback, OnCompleteListene
     }
 
 
-    // TODO: Implement getGeofencingRequest function
+    // Implement getGeofencingRequest function
+    private fun getGeofencingRequest(type: String, lat: Double, lon: Double): GeofencingRequest {
+        Log.d(TAG, "Geofencing $lat, $lon, $type")
+        val (regionSize, transition) = when(type) {
+            getString(R.string.map_marker_home) -> Pair(200f, Geofence.GEOFENCE_TRANSITION_ENTER)
+            getString(R.string.map_marker_work) -> Pair(300f, Geofence.GEOFENCE_TRANSITION_EXIT)
+            getString(R.string.map_marker_fitness) -> Pair(300f, Geofence.GEOFENCE_TRANSITION_DWELL)
+            else -> throw Exception("Unrecognised geofence type :(")
+        }
+        val geofence = with(Geofence.Builder()) {
+            // calls each func as a property of the builder
+            setRequestId(type)
+            setCircularRegion(lat, lon, regionSize)
+            setExpirationDuration(Geofence.NEVER_EXPIRE)
+            setTransitionTypes(transition)
+            if(transition == Geofence.GEOFENCE_TRANSITION_DWELL) setLoiteringDelay(3000)
+            build()
+        }
+        return with(GeofencingRequest.Builder()) {
+            setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
+            addGeofences(listOf(geofence))
+            build()
+        }
+    }
 
 
     @SuppressLint("MissingPermission")
     private fun addGeofence(request : GeofencingRequest){
 
         // TODO: add geofence through the Geofencing Client
+        mGeofencingClient.addGeofences(request, mGeofencePendingIntent)
+            .addOnCompleteListener(this)
 
         Log.d(TAG, "addGeofence")
     }
